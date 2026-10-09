@@ -81,10 +81,30 @@ local CoverScene = WidgetContainer:extend{
 
 function CoverScene:init()
     self.ui.menu:registerToMainMenu(self)
+    -- Up to v2025.10 KOReader creates the sleep screen menu only after the plugins have added
+    -- their items, and the menu sorter takes it out of menu_items again. So the item is put in
+    -- at the moment the sleep screen menu gets assigned.
+    setmetatable(self.ui.menu.menu_items, {
+        __newindex = function(menu_items, id, item)
+            if id == "screensaver" and type(item) == "table" and item.sub_item_table then
+                table.insert(item.sub_item_table, self:genMenuItem())
+            end
+            rawset(menu_items, id, item)
+        end,
+    })
 end
 
 function CoverScene:addToMainMenu(menu_items)
-    local item = {
+    -- Devices without a sleep screen menu still get the item, for the preview.
+    if not Device:supportsScreensaver() then
+        local item = self:genMenuItem()
+        item.sorting_hint = "screen"
+        menu_items.coverscene = item
+    end
+end
+
+function CoverScene:genMenuItem()
+    return {
         text = _("Book cover in background picture"),
         sub_item_table = {
             {
@@ -118,14 +138,6 @@ function CoverScene:addToMainMenu(menu_items)
             },
         },
     }
-    -- Lives with the other sleep screen settings, where the device has such a menu.
-    local sleep_screen_menu = menu_items.screensaver and menu_items.screensaver.sub_item_table
-    if sleep_screen_menu then
-        table.insert(sleep_screen_menu, item)
-    else
-        item.sorting_hint = "screen"
-        menu_items.coverscene = item
-    end
 end
 
 function CoverScene:chooseBackground()
