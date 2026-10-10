@@ -3,8 +3,8 @@ local lfs = require("libs/libkoreader-lfs")
 -- The background pictures to rotate through. A scene is { file = path, corners = { 4 points } },
 -- with corners as fractions of the picture: top left, top right, bottom right, bottom left.
 -- Instead of file, a scene can have bundled = the name of one of the pictures that come with
--- the plugin; without corners it uses the defaults below. disabled = true keeps a scene in the
--- list, but out of the rotation.
+-- the plugin; without corners it uses the defaults below. brightness (percent, 100 if left out)
+-- darkens the cover. disabled = true keeps a scene in the list, but out of the rotation.
 local Scenes = {}
 
 local plugin_dir = debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$")
@@ -74,7 +74,7 @@ end
 function Scenes.save(scenes)
     local untouched = #scenes == 0 or #scenes == #DEFAULT_ORDER
     for i, scene in ipairs(scenes) do
-        if scene.file or scene.corners or scene.disabled or scene.bundled ~= DEFAULT_ORDER[i] then
+        if scene.file or scene.corners or scene.brightness or scene.disabled or scene.bundled ~= DEFAULT_ORDER[i] then
             untouched = false
         end
     end
@@ -100,6 +100,58 @@ end
 
 function Scenes.getCorners(scene)
     return scene.corners or (scene.file and GENERIC_CORNERS or BUNDLED[scene.bundled].corners)
+end
+
+function Scenes.getBrightness(scene)
+    return scene.brightness or 100
+end
+
+-- A picture can carry its corners and brightness in its file name, to be passed on as one file:
+--   name.coverscene-3600-4320-6400-4320-6618-7464-3382-7464-100.png
+-- These are x and y of the four corners in 1/10000 of the picture, and the brightness.
+local NAME_TAG = ".coverscene-"
+
+-- The file name to pass the scene on under.
+function Scenes.getExportName(scene)
+    local name = Scenes.getFile(scene):match("[^/]*$")
+    local base, suffix = name:match("^(.*)(%.[^.]*)$")
+    if not base then
+        base, suffix = name, ""
+    end
+    local tag_start = base:find(NAME_TAG, 1, true)
+    if tag_start then
+        base = base:sub(1, tag_start - 1)
+    end
+    local numbers = {}
+    for _, corner in ipairs(Scenes.getCorners(scene)) do
+        table.insert(numbers, math.floor(corner.x * 10000 + 0.5))
+        table.insert(numbers, math.floor(corner.y * 10000 + 0.5))
+    end
+    table.insert(numbers, Scenes.getBrightness(scene))
+    return base .. NAME_TAG .. table.concat(numbers, "-") .. suffix
+end
+
+-- The corners and brightness in a file name made by Scenes.getExportName, or nil.
+function Scenes.parseExportName(file)
+    local name = file:match("[^/]*$")
+    local tag_start, tag_end = name:find(NAME_TAG, 1, true)
+    if not tag_start then return end
+    local numbers = {}
+    for number in name:sub(tag_end + 1):match("^[%d%-]*"):gmatch("%d+") do
+        table.insert(numbers, tonumber(number))
+    end
+    if #numbers < 8 then return end
+    local corners = {}
+    for i = 1, 4 do
+        local x, y = numbers[2 * i - 1], numbers[2 * i]
+        if x > 10000 or y > 10000 then return end
+        corners[i] = { x = x / 10000, y = y / 10000 }
+    end
+    local brightness = numbers[9]
+    if brightness and (brightness < 10 or brightness >= 100) then
+        brightness = nil
+    end
+    return corners, brightness
 end
 
 function Scenes.isRandom()

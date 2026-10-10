@@ -32,7 +32,7 @@ end
 local function compose(cover_bb, scene)
     local w, h = getPortraitSize()
     local ok, canvas = pcall(require("coverscene_compose").render,
-        Scenes.getFile(scene), cover_bb, Scenes.getCorners(scene), w, h)
+        Scenes.getFile(scene), cover_bb, Scenes.getCorners(scene), w, h, Scenes.getBrightness(scene) / 100)
     if not ok then
         logger.warn("CoverScene: compositing failed:", canvas)
         return
@@ -190,7 +190,7 @@ function CoverScene:genPicturesMenuTable()
         text = _("Add background picture"),
         keep_menu_open = true,
         callback = function(touchmenu_instance)
-            self:addScene(menu_table, touchmenu_instance)
+            self:addScene(menu_table, scenes, touchmenu_instance)
         end,
     })
     return menu_table
@@ -200,7 +200,8 @@ local function getSceneName(scene)
     if not scene.file then
         return BUNDLED_NAMES[scene.bundled]
     end
-    local name = ffiUtil.basename(scene.file)
+    -- without the corners an exported picture has in its name
+    local name = ffiUtil.basename(scene.file):gsub("%.coverscene%-[%d%-]*", "")
     return Scenes.isUsable(scene) and name or T(_("%1 (missing)"), name)
 end
 
@@ -233,6 +234,15 @@ function CoverScene:genSceneMenuItem(menu_table, scenes, scene)
                 enabled_func = function() return Scenes.isUsable(scene) end,
                 callback = function()
                     self:showPreview(scene)
+                end,
+            },
+            {
+                text = _("Export for sharing"),
+                help_text = _("Saves a copy of the picture with the cover corners in its file name. Adding that file as a background picture sets the corners by itself."),
+                keep_menu_open = true,
+                enabled_func = function() return Scenes.isUsable(scene) end,
+                callback = function()
+                    self:exportScene(scene)
                 end,
             },
             {
@@ -273,8 +283,7 @@ function CoverScene:refillMenuTable(menu_table)
     end
 end
 
-function CoverScene:addScene(menu_table, touchmenu_instance)
-    local scenes = Scenes.list()
+function CoverScene:addScene(menu_table, scenes, touchmenu_instance)
     local dir = G_reader_settings:readSetting("coverscene_last_dir")
     if not dir or lfs.attributes(dir, "mode") ~= "directory" then
         dir = G_reader_settings:readSetting("home_dir") or require("apps/filemanager/filemanagerutil").getDefaultDir()
@@ -295,8 +304,10 @@ function CoverScene:addScene(menu_table, touchmenu_instance)
                     scene = other
                 end
             end
-            if not scene then
+            local is_new = not scene
+            if is_new then
                 scene = { file = path }
+                scene.corners, scene.brightness = Scenes.parseExportName(path)
                 table.insert(scenes, scene)
                 Scenes.save(scenes)
                 self:refillMenuTable(menu_table)
@@ -304,7 +315,14 @@ function CoverScene:addScene(menu_table, touchmenu_instance)
             end
             -- once the file chooser is gone
             UIManager:nextTick(function()
-                self:editCorners(scenes, scene)
+                if is_new and scene.corners then
+                    UIManager:show(InfoMessage:new{
+                        text = _("The cover corners were taken from the file name."),
+                        timeout = 3,
+                    })
+                else
+                    self:editCorners(scenes, scene)
+                end
             end)
         end,
     })
@@ -325,21 +343,36 @@ function CoverScene:editCorners(scenes, scene)
         UIManager:show(InfoMessage:new{ text = _("Please rotate the screen to portrait to set the corners.") })
         return
     end
-    local Compose = require("coverscene_compose")
-    local background, geom = Compose.prepareBackground(Scenes.getFile(scene), Screen:getWidth(), Screen:getHeight())
-    if not background then
+    local picture, geom = require("coverscene_compose").loadPicture(Scenes.getFile(scene), Screen:getWidth(), Screen:getHeight())
+    if not picture then
         UIManager:show(InfoMessage:new{ text = _("Could not render the background picture.") })
         return
     end
     UIManager:show(require("coverscene_editor"):new{
-        background = background,
+        picture = picture,
         geom = geom,
         cover = self:getSampleCover(),
         corners = Scenes.getCorners(scene),
-        save_callback = function(corners)
+        brightness = Scenes.getBrightness(scene),
+        save_callback = function(corners, brightness)
             scene.corners = corners
+            scene.brightness = brightness ~= 100 and brightness or nil
             Scenes.save(scenes)
         end,
+    })
+end
+
+-- Writes a copy of the picture that has the corners in its file name, to pass on as one file.
+function CoverScene:exportScene(scene)
+    local dir = G_reader_settings:readSetting("home_dir") or require("apps/filemanager/filemanagerutil").getDefaultDir()
+    local target = dir .. "/" .. Scenes.getExportName(scene)
+    local err = ffiUtil.copyFile(Scenes.getFile(scene), target)
+    if err then
+        UIManager:show(InfoMessage:new{ text = T(_("Could not write the picture:\n%1"), err) })
+        return
+    end
+    UIManager:show(InfoMessage:new{
+        text = T(_("Saved as:\n%1\n\nThe file name holds the cover corners. Whoever adds this file as a background picture gets them along with it, as long as the name stays."), target),
     })
 end
 

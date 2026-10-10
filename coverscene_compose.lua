@@ -4,25 +4,63 @@ local ffi = require("ffi")
 
 local Compose = {}
 
--- Renders the background picture scaled to fill a w x h screen, cropped centered.
--- Returns the w x h BlitBuffer and the geometry needed to map picture positions to screen pixels.
-function Compose.prepareBackground(bg_file, w, h)
-    local bg = RenderImage:renderImageFile(bg_file, false)
-    if not bg then return end
+-- Whether a picture has see-through parts. MuPDF hands out pictures with an alpha channel as
+-- BB8A or BBRGB32, with premultiplied alpha.
+local function hasTransparency(bb)
+    local bbtype = bb:getType()
+    local pixel_size
+    if bbtype == Blitbuffer.TYPE_BBRGB32 then
+        pixel_size = 4
+    elseif bbtype == Blitbuffer.TYPE_BB8A then
+        pixel_size = 2
+    else
+        return false
+    end
+    local data, stride = ffi.cast("uint8_t *", bb.data), tonumber(bb.stride)
+    local w, h = bb:getWidth(), bb:getHeight()
+    for y = 0, h - 1 do
+        local alpha = data + y * stride + pixel_size - 1
+        for x = 0, w - 1 do
+            if alpha[x * pixel_size] ~= 0xFF then
+                return true
+            end
+        end
+    end
+    return false
+end
 
-    local scale = math.max(w / bg:getWidth(), h / bg:getHeight())
+-- Loads the background picture scaled to fill a w x h screen. Returns it and the geometry needed
+-- to crop it centered and to map picture positions to screen pixels. geom.see_through tells that
+-- the picture has transparent parts, and so goes over the cover instead of under it.
+function Compose.loadPicture(bg_file, w, h)
+    local picture = RenderImage:renderImageFile(bg_file, false)
+    if not picture then return end
+
+    local scale = math.max(w / picture:getWidth(), h / picture:getHeight())
     local geom = {
-        scaled_w = math.ceil(bg:getWidth() * scale),
-        scaled_h = math.ceil(bg:getHeight() * scale),
+        w = w,
+        h = h,
+        scaled_w = math.ceil(picture:getWidth() * scale),
+        scaled_h = math.ceil(picture:getHeight() * scale),
     }
     geom.off_x = math.floor((geom.scaled_w - w) / 2)
     geom.off_y = math.floor((geom.scaled_h - h) / 2)
-    bg = RenderImage:scaleBlitBuffer(bg, geom.scaled_w, geom.scaled_h)
+    picture = RenderImage:scaleBlitBuffer(picture, geom.scaled_w, geom.scaled_h)
+    geom.see_through = hasTransparency(picture)
+    return picture, geom
+end
 
-    local canvas = Blitbuffer.new(w, h, Blitbuffer.TYPE_BBRGB32)
-    canvas:blitFrom(bg, 0, 0, geom.off_x, geom.off_y, w, h)
-    bg:free()
-    return canvas, geom
+-- Paints the scene onto canvas (BBRGB32, geom.w x geom.h): the picture from Compose.loadPicture
+-- and cover_bb stretched onto the quad. brightness (0..1) darkens the cover.
+function Compose.paint(canvas, picture, geom, cover_bb, quad, brightness)
+    if geom.see_through then
+        canvas:fill(Blitbuffer.COLOR_WHITE)
+        Compose.warp(canvas, cover_bb, quad, brightness)
+        canvas:pmulalphablitFrom(picture, 0, 0, geom.off_x, geom.off_y, geom.w, geom.h)
+    else
+        canvas:blitFrom(picture, 0, 0, geom.off_x, geom.off_y, geom.w, geom.h)
+        Compose.warp(canvas, cover_bb, quad, brightness)
+    end
 end
 
 -- Corners are stored as fractions (0..1) of the background picture, in the order
@@ -77,10 +115,11 @@ local function dist(p, q)
 end
 
 -- Draws cover_bb onto canvas (BBRGB32), stretched so that its corners land on the quad's corners.
--- cover_bb is left untouched.
-function Compose.warp(canvas, cover_bb, quad)
+-- brightness (0..1, 1 if left out) darkens it. cover_bb is left untouched.
+function Compose.warp(canvas, cover_bb, quad, brightness)
     local A, B, C, D, E, F, G, H, I = Compose.inverseHomography(quad)
     if not A then return end
+    brightness = brightness or 1
 
     -- Bring the cover to about its on-screen size first with the good scaler,
     -- so that bilinear sampling below is enough.
@@ -131,7 +170,7 @@ function Compose.warp(canvas, cover_bb, quad)
                     for ch = 0, 2 do
                         local top = p_aa[ch] + (p_ba[ch] - p_aa[ch]) * fu
                         local bottom = p_ab[ch] + (p_bb[ch] - p_ab[ch]) * fu
-                        local value = top + (bottom - top) * fv
+                        local value = (top + (bottom - top) * fv) * brightness
                         dst[ch] = floor(dst[ch] + (value - dst[ch]) * cov + 0.5)
                     end
                     dst[3] = 0xFF
@@ -143,10 +182,12 @@ function Compose.warp(canvas, cover_bb, quad)
 end
 
 -- Returns a new w x h BlitBuffer: the background picture with cover_bb warped onto the given corners.
-function Compose.render(bg_file, cover_bb, corners, w, h)
-    local canvas, geom = Compose.prepareBackground(bg_file, w, h)
-    if not canvas then return end
-    Compose.warp(canvas, cover_bb, Compose.cornersToQuad(corners, geom))
+function Compose.render(bg_file, cover_bb, corners, w, h, brightness)
+    local picture, geom = Compose.loadPicture(bg_file, w, h)
+    if not picture then return end
+    local canvas = Blitbuffer.new(w, h, Blitbuffer.TYPE_BBRGB32)
+    Compose.paint(canvas, picture, geom, cover_bb, Compose.cornersToQuad(corners, geom), brightness)
+    picture:free()
     return canvas
 end
 
