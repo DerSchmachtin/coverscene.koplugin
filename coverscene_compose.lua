@@ -31,8 +31,9 @@ end
 
 -- Loads the background picture scaled to fill a w x h screen. Returns it and the geometry needed
 -- to crop it centered and to map picture positions to screen pixels. geom.see_through tells that
--- the picture has transparent parts, and so goes over the cover instead of under it.
-function Compose.loadPicture(bg_file, w, h)
+-- the picture has transparent parts, and so goes over the cover instead of under it, unless
+-- cover_on_top asks for the cover to go over the picture all the same.
+function Compose.loadPicture(bg_file, w, h, cover_on_top)
     local picture = RenderImage:renderImageFile(bg_file, false)
     if not picture then return end
 
@@ -47,19 +48,26 @@ function Compose.loadPicture(bg_file, w, h)
     geom.off_y = math.floor((geom.scaled_h - h) / 2)
     picture = RenderImage:scaleBlitBuffer(picture, geom.scaled_w, geom.scaled_h)
     geom.see_through = hasTransparency(picture)
+    geom.cover_on_top = cover_on_top or not geom.see_through
     return picture, geom
 end
 
 -- Paints the scene onto canvas (BBRGB32, geom.w x geom.h): the picture from Compose.loadPicture
 -- and cover_bb stretched onto the quad. brightness (0..1) darkens the cover.
 function Compose.paint(canvas, picture, geom, cover_bb, quad, brightness)
-    if geom.see_through then
-        canvas:fill(Blitbuffer.COLOR_WHITE)
-        Compose.warp(canvas, cover_bb, quad, brightness)
-        canvas:pmulalphablitFrom(picture, 0, 0, geom.off_x, geom.off_y, geom.w, geom.h)
-    else
+    if not geom.see_through then
         canvas:blitFrom(picture, 0, 0, geom.off_x, geom.off_y, geom.w, geom.h)
         Compose.warp(canvas, cover_bb, quad, brightness)
+        return
+    end
+    -- what is transparent with nothing behind it shows white
+    canvas:fill(Blitbuffer.COLOR_WHITE)
+    if geom.cover_on_top then
+        canvas:pmulalphablitFrom(picture, 0, 0, geom.off_x, geom.off_y, geom.w, geom.h)
+        Compose.warp(canvas, cover_bb, quad, brightness)
+    else
+        Compose.warp(canvas, cover_bb, quad, brightness)
+        canvas:pmulalphablitFrom(picture, 0, 0, geom.off_x, geom.off_y, geom.w, geom.h)
     end
 end
 
@@ -182,8 +190,8 @@ function Compose.warp(canvas, cover_bb, quad, brightness)
 end
 
 -- Returns a new w x h BlitBuffer: the background picture with cover_bb warped onto the given corners.
-function Compose.render(bg_file, cover_bb, corners, w, h, brightness)
-    local picture, geom = Compose.loadPicture(bg_file, w, h)
+function Compose.render(bg_file, cover_bb, corners, w, h, brightness, cover_on_top)
+    local picture, geom = Compose.loadPicture(bg_file, w, h, cover_on_top)
     if not picture then return end
     local canvas = Blitbuffer.new(w, h, Blitbuffer.TYPE_BBRGB32)
     Compose.paint(canvas, picture, geom, cover_bb, Compose.cornersToQuad(corners, geom), brightness)

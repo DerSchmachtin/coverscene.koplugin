@@ -4,15 +4,15 @@ A [KOReader](https://github.com/koreader/koreader) plugin for the sleep screen: 
 
 The cover is warped onto four corners you set yourself, so it can follow a slanted surface in perspective and looks like part of the scene.
 
-<img src="example.png" alt="Sleep screen: a book cover standing on the lectern of a library" width="300"> <img src="example_gallery.png" alt="Sleep screen: a book cover hanging framed in a gallery" width="300">
+<img src="example.png" alt="Sleep screen: a book cover standing on the lectern of a library" width="250"> <img src="example_gallery.png" alt="Sleep screen: a book cover hanging framed in a gallery" width="250"> <img src="example_mirror.png" alt="Sleep screen: a book cover as the glass of a mirror, with a vase of roses in front of it" width="250">
 
-The two bundled pictures with an example cover: the library with its lectern and the gallery with its frame.
+The three bundled pictures with an example cover: the library with its lectern, the gallery with its frame, and the mirror, where the roses are in front of the cover.
 
 ## What it does
 
 - **Cover in a scene:** the sleep screen shows a background picture with the current book's cover placed into it, in perspective.
 - **Several pictures:** any number of background pictures, each with its own place for the cover, shown in turn or at random. Single pictures can be switched off without losing their settings.
-- **Two pictures included:** a library with a lectern and a gallery with a frame, ready to use.
+- **Three pictures included:** a library with a lectern, a gallery with a frame and a mirror with roses in front of it, ready to use.
 - **Your own pictures:** add any picture from the device and mark the four corners of the cover in a full-screen editor with a magnifier.
 - **Things in front of the cover:** a PNG with transparent parts goes over the cover, for a hand holding the book or a frame overlapping it.
 - **Cover brightness:** the cover can be darkened per picture, so it fits a dim scene.
@@ -34,7 +34,7 @@ The two bundled pictures with an example cover: the library with its lectern and
 2. In **Settings → Screen → Sleep screen → Book cover in background picture**, tick **Place book cover into background picture**.
 3. Check the result with **Background pictures → Library (bundled) → Preview**.
 
-Out of the box this alternates between the two bundled pictures, `library.png` and `gallery.png` (both 1236×1648, 3:4 like a Kindle Paperwhite), with the corners already set to the lectern and the frame, so no further setup is needed.
+Out of the box this goes through the three bundled pictures, `library.png`, `gallery.png` and `mirror.png` (all 1236×1648, 3:4 like a Kindle Paperwhite), with the corners already set to the lectern, the frame and the mirror's glass, so no further setup is needed.
 
 ## The menu
 
@@ -43,17 +43,17 @@ Everything is in **Settings → Screen → Sleep screen → Book cover in backgr
 - **Place book cover into background picture** switches the plugin on and off.
 - **Background pictures** is the list of pictures, with one submenu per picture, and the entries to add more.
 - **Order of pictures** is in turn or random.
-- **Reset to default** goes back to the two bundled pictures.
+- **Reset to default** goes back to the three bundled pictures.
 
 ## Background pictures
 
-**Background pictures** lists the pictures, at first **Library (bundled)** and **Gallery (bundled)**. With more than one picture in the list, each sleep screen shows another one.
+**Background pictures** lists the pictures, at first **Library (bundled)**, **Gallery (bundled)** and **Mirror (bundled)**. With more than one picture in the list, each sleep screen shows another one.
 
 Tapping a picture in the list gives you **Use this picture**, **Set cover corners**, **Preview**, **Export for sharing** and **Remove** for that picture. Every picture has its own corners.
 
 Unticking **Use this picture** takes a picture out of the rotation but keeps it in the list with its corners, so you can switch it back on later; the list shows a check mark for the pictures in use. With all of them switched off, the sleep screen shows the plain cover.
 
-Removing only takes the picture out of the list; a removed bundled picture can be put back with **Add Library (bundled)** or **Add Gallery (bundled)**.
+Removing only takes the picture out of the list; a removed bundled picture can be put back with its entry **Add … (bundled)**, which shows up while it is not in the list.
 
 To use a picture of your own:
 
@@ -66,7 +66,7 @@ The background is scaled to fill the screen in portrait and cropped centered, so
 
 **Order of pictures** chooses between going through the list in turn and picking one at random (never the same twice in a row). A picture whose file is missing, e.g. on a card that is not inserted, is marked "(missing)" and skipped.
 
-**Reset to default** goes back to the two bundled pictures alone, with their original corners. Your picture files are not deleted.
+**Reset to default** goes back to the three bundled pictures alone, with their original corners. Your picture files are not deleted.
 
 ## Setting the corners
 
@@ -96,7 +96,9 @@ The cover is stretched to fill the four corners exactly, so the area should have
 
 ### Pictures with something in front of the cover
 
-A PNG with transparent parts is laid *over* the cover instead of under it. So to have something in front of the book, like a hand holding it, a frame overlapping its edges or a ribbon across it:
+A scene can have three layers: what is behind the cover, the cover, and what is in front of it. All of it comes from one picture file: a PNG with transparent parts is laid *over* the cover instead of under it, so everything that is not transparent ends up in front. The bundled mirror is made that way: its glass is transparent, so the cover shows there, cut to the arched shape of the glass, while the frame and the roses stay in front of it and their shadow falls onto the cover.
+
+To have something in front of the book in a picture of your own, like a hand holding it, a frame overlapping its edges or a ribbon across it:
 
 1. In an image editor, make the place where the cover should show transparent, and leave everything that is in front of the book as it is.
 2. Save it as PNG, which keeps the transparency (JPEG does not).
@@ -105,6 +107,8 @@ A PNG with transparent parts is laid *over* the cover instead of under it. So to
 Half-transparent parts work too, e.g. a shadow falling onto the cover. Wherever the picture is transparent and no cover lies behind it, it shows white.
 
 A picture without transparency works as before: the cover is drawn on top of it.
+
+A picture that can have transparent parts gets one more entry in its submenu, **Picture in front of the cover**, ticked to begin with. Untick it to have the cover drawn on top of that picture after all, e.g. when a picture turns out to be transparent in places by accident and hides the cover.
 
 ## Sharing a picture
 
@@ -117,7 +121,9 @@ That one file is all there is to pass on. To use a picture someone shared:
 1. Copy the file onto the device without renaming it.
 2. Pick it with **Background pictures → Add background picture**.
 
-The corners and the brightness are taken from the name, so there is nothing to set; the list shows the picture under its short name. The numbers are the x and y of the four corners (top left, top right, bottom right, bottom left) in ten-thousandths of the picture's width and height, followed by the brightness in percent. The file must keep its name, at least the part from `.coverscene-` on; if a chat or download renames it, change it back or set the corners by hand.
+The corners and the brightness are taken from the name, so there is nothing to set; the list shows the picture under its short name. The numbers are the x and y of the four corners (top left, top right, bottom right, bottom left) in ten-thousandths of the picture's width and height, followed by the brightness in percent; a `-1` after that says that a see-through picture goes behind the cover. The file must keep its name, at least the part from `.coverscene-` on; if a chat or download renames it, change it back or set the corners by hand.
+
+If you change the corners, the brightness or **Picture in front of the cover** of a picture that has them in its name, the file is renamed to match, so the name never passes on outdated numbers. Pictures with ordinary names are never renamed.
 
 ## Structure
 
@@ -125,8 +131,8 @@ The corners and the brightness are taken from the name, so there is nothing to s
 - `coverscene_editor.lua`: the full-screen editor for corners and brightness.
 - `coverscene_scenes.lua`: the list of background pictures with their settings, the rotation between them and the file names for sharing.
 - `main.lua` / `_meta.lua`: plugin registration, menu entries and the hook into KOReader's sleep screen.
-- `library.png`, `gallery.png`: the bundled background pictures.
-- `example.png`, `example_gallery.png`, `example_editor.png`: the pictures shown in this README, not used by the plugin.
+- `library.png`, `gallery.png`, `mirror.png`: the bundled background pictures.
+- `example.png`, `example_gallery.png`, `example_mirror.png`, `example_editor.png`: the pictures shown in this README, not used by the plugin.
 
 ## License
 

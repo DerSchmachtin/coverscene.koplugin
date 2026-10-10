@@ -32,7 +32,7 @@ end
 local function compose(cover_bb, scene)
     local w, h = getPortraitSize()
     local ok, canvas = pcall(require("coverscene_compose").render,
-        Scenes.getFile(scene), cover_bb, Scenes.getCorners(scene), w, h, Scenes.getBrightness(scene) / 100)
+        Scenes.getFile(scene), cover_bb, Scenes.getCorners(scene), w, h, Scenes.getBrightness(scene) / 100, scene.behind)
     if not ok then
         logger.warn("CoverScene: compositing failed:", canvas)
         return
@@ -90,6 +90,7 @@ end
 local BUNDLED_NAMES = {
     library = _("Library (bundled)"),
     gallery = _("Gallery (bundled)"),
+    mirror = _("Mirror (bundled)"),
 }
 
 function CoverScene:genMenuItem()
@@ -206,7 +207,7 @@ local function getSceneName(scene)
 end
 
 function CoverScene:genSceneMenuItem(menu_table, scenes, scene)
-    return {
+    local item = {
         text = getSceneName(scene),
         checked_func = function() return not scene.disabled end,
         sub_item_table = {
@@ -270,6 +271,20 @@ function CoverScene:genSceneMenuItem(menu_table, scenes, scene)
             },
         },
     }
+    -- Only a picture with transparent parts can go in front of the cover, so only that gets a choice.
+    if Scenes.canBeSeeThrough(scene) then
+        table.insert(item.sub_item_table, 2, {
+            text = _("Picture in front of the cover"),
+            help_text = _("A picture with transparent parts is laid over the cover, which shows through them. Untick this if the cover should go on top of the picture instead, e.g. when the picture is transparent in places by accident."),
+            checked_func = function() return not scene.behind end,
+            callback = function()
+                scene.behind = not scene.behind or nil
+                Scenes.updateExportName(scene)
+                Scenes.save(scenes)
+            end,
+        })
+    end
+    return item
 end
 
 -- The menu holds on to the table it is showing, so that one gets the new items.
@@ -307,7 +322,7 @@ function CoverScene:addScene(menu_table, scenes, touchmenu_instance)
             local is_new = not scene
             if is_new then
                 scene = { file = path }
-                scene.corners, scene.brightness = Scenes.parseExportName(path)
+                scene.corners, scene.brightness, scene.behind = Scenes.parseExportName(path)
                 table.insert(scenes, scene)
                 Scenes.save(scenes)
                 self:refillMenuTable(menu_table)
@@ -343,7 +358,7 @@ function CoverScene:editCorners(scenes, scene)
         UIManager:show(InfoMessage:new{ text = _("Please rotate the screen to portrait to set the corners.") })
         return
     end
-    local picture, geom = require("coverscene_compose").loadPicture(Scenes.getFile(scene), Screen:getWidth(), Screen:getHeight())
+    local picture, geom = require("coverscene_compose").loadPicture(Scenes.getFile(scene), Screen:getWidth(), Screen:getHeight(), scene.behind)
     if not picture then
         UIManager:show(InfoMessage:new{ text = _("Could not render the background picture.") })
         return
@@ -357,6 +372,7 @@ function CoverScene:editCorners(scenes, scene)
         save_callback = function(corners, brightness)
             scene.corners = corners
             scene.brightness = brightness ~= 100 and brightness or nil
+            Scenes.updateExportName(scene)
             Scenes.save(scenes)
         end,
     })

@@ -4,7 +4,9 @@ local lfs = require("libs/libkoreader-lfs")
 -- with corners as fractions of the picture: top left, top right, bottom right, bottom left.
 -- Instead of file, a scene can have bundled = the name of one of the pictures that come with
 -- the plugin; without corners it uses the defaults below. brightness (percent, 100 if left out)
--- darkens the cover. disabled = true keeps a scene in the list, but out of the rotation.
+-- darkens the cover. behind = true puts a picture with transparent parts behind the cover,
+-- where it would otherwise go in front. disabled = true keeps a scene in the list, but out of
+-- the rotation.
 local Scenes = {}
 
 local plugin_dir = debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$")
@@ -24,9 +26,16 @@ local BUNDLED = {
             { x = 0.3463, y = 0.2397 }, { x = 0.6537, y = 0.2397 }, { x = 0.6537, y = 0.5856 }, { x = 0.3463, y = 0.5856 },
         },
     },
+    mirror = {
+        file = plugin_dir .. "/mirror.png",
+        -- a little beyond the glass, which is see-through, with the roses in front of it
+        corners = {
+            { x = 0.2913, y = 0.1954 }, { x = 0.7087, y = 0.1954 }, { x = 0.7087, y = 0.6602 }, { x = 0.2913, y = 0.6602 },
+        },
+    },
 }
 -- what is in the list until it gets changed
-local DEFAULT_ORDER = { "library", "gallery" }
+local DEFAULT_ORDER = { "library", "gallery", "mirror" }
 Scenes.BUNDLED_NAMES = DEFAULT_ORDER
 
 -- a book-shaped area in the middle, for a picture whose corners have not been set yet
@@ -74,7 +83,8 @@ end
 function Scenes.save(scenes)
     local untouched = #scenes == 0 or #scenes == #DEFAULT_ORDER
     for i, scene in ipairs(scenes) do
-        if scene.file or scene.corners or scene.brightness or scene.disabled or scene.bundled ~= DEFAULT_ORDER[i] then
+        if scene.file or scene.corners or scene.brightness or scene.behind or scene.disabled
+            or scene.bundled ~= DEFAULT_ORDER[i] then
             untouched = false
         end
     end
@@ -106,9 +116,22 @@ function Scenes.getBrightness(scene)
     return scene.brightness or 100
 end
 
+-- Whether the picture file can have transparent parts at all: a PNG with an alpha channel, or
+-- with a palette that has transparent entries. Cheaper than loading it to look for them.
+function Scenes.canBeSeeThrough(scene)
+    local fh = io.open(Scenes.getFile(scene), "rb")
+    if not fh then return false end
+    local head = fh:read(4096) or ""
+    fh:close()
+    if head:sub(1, 8) ~= "\137PNG\r\n\26\n" then return false end
+    local color_type = head:byte(26)
+    return color_type == 4 or color_type == 6 or head:find("tRNS", 1, true) ~= nil
+end
+
 -- A picture can carry its corners and brightness in its file name, to be passed on as one file:
 --   name.coverscene-3600-4320-6400-4320-6618-7464-3382-7464-100.png
--- These are x and y of the four corners in 1/10000 of the picture, and the brightness.
+-- These are x and y of the four corners in 1/10000 of the picture, and the brightness. A further
+-- -1 stands for behind = true.
 local NAME_TAG = ".coverscene-"
 
 -- The file name to pass the scene on under.
@@ -128,10 +151,24 @@ function Scenes.getExportName(scene)
         table.insert(numbers, math.floor(corner.y * 10000 + 0.5))
     end
     table.insert(numbers, Scenes.getBrightness(scene))
+    if scene.behind then
+        table.insert(numbers, 1)
+    end
     return base .. NAME_TAG .. table.concat(numbers, "-") .. suffix
 end
 
--- The corners and brightness in a file name made by Scenes.getExportName, or nil.
+-- A picture that has its corners in its file name gets renamed when they change, so that
+-- the name does not pass on outdated ones. Other pictures keep their names.
+function Scenes.updateExportName(scene)
+    if not scene.file or not Scenes.parseExportName(scene.file) then return end
+    local target = scene.file:match("^(.*/)") .. Scenes.getExportName(scene)
+    if target == scene.file or lfs.attributes(target, "mode") then return end
+    if os.rename(scene.file, target) then
+        scene.file = target
+    end
+end
+
+-- The corners, brightness and behind in a file name made by Scenes.getExportName, or nil.
 function Scenes.parseExportName(file)
     local name = file:match("[^/]*$")
     local tag_start, tag_end = name:find(NAME_TAG, 1, true)
@@ -151,7 +188,7 @@ function Scenes.parseExportName(file)
     if brightness and (brightness < 10 or brightness >= 100) then
         brightness = nil
     end
-    return corners, brightness
+    return corners, brightness, numbers[10] == 1 or nil
 end
 
 function Scenes.isRandom()
