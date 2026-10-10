@@ -118,15 +118,15 @@ function CoverScene:genMenuItem()
             {
                 text = _("Choose background picture"),
                 keep_menu_open = true,
-                callback = function()
-                    self:chooseBackground()
+                callback = function(touchmenu_instance)
+                    self:chooseBackground(touchmenu_instance)
                 end,
             },
             {
                 text = _("Set cover corners"),
                 keep_menu_open = true,
-                callback = function()
-                    self:editCorners()
+                callback = function(touchmenu_instance)
+                    self:editCorners(touchmenu_instance)
                 end,
             },
             {
@@ -136,14 +136,26 @@ function CoverScene:genMenuItem()
                     self:showPreview()
                 end,
             },
+            {
+                text = _("Reset to default"),
+                help_text = _("Goes back to the bundled library picture and its cover corners."),
+                keep_menu_open = true,
+                enabled_func = function()
+                    return G_reader_settings:has("coverscene_image") or G_reader_settings:has("coverscene_corners")
+                end,
+                callback = function(touchmenu_instance)
+                    self:resetToDefault(touchmenu_instance)
+                end,
+            },
         },
     }
 end
 
-function CoverScene:chooseBackground()
+function CoverScene:chooseBackground(touchmenu_instance)
     local filemanagerutil = require("apps/filemanager/filemanagerutil")
     local caller_callback = function(path)
         G_reader_settings:saveSetting("coverscene_image", path)
+        if touchmenu_instance then touchmenu_instance:updateItems() end
     end
     local file_filter = function(filename)
         return DocumentRegistry:isImageFile(filename)
@@ -162,7 +174,7 @@ function CoverScene:getSampleCover()
     return cover_bb or RenderImage:renderCheckerboard(600, 900)
 end
 
-function CoverScene:editCorners()
+function CoverScene:editCorners(touchmenu_instance)
     local bg_file = getBackgroundFile()
     if not bg_file then
         UIManager:show(InfoMessage:new{ text = _("Please choose a background picture first.") })
@@ -185,6 +197,20 @@ function CoverScene:editCorners()
         corners = getCorners(),
         save_callback = function(corners)
             G_reader_settings:saveSetting("coverscene_corners", corners)
+            if touchmenu_instance then touchmenu_instance:updateItems() end
+        end,
+    })
+end
+
+function CoverScene:resetToDefault(touchmenu_instance)
+    local ConfirmBox = require("ui/widget/confirmbox")
+    UIManager:show(ConfirmBox:new{
+        text = _("Go back to the bundled library picture and its cover corners?"),
+        ok_text = _("Reset"),
+        ok_callback = function()
+            G_reader_settings:delSetting("coverscene_image")
+            G_reader_settings:delSetting("coverscene_corners")
+            if touchmenu_instance then touchmenu_instance:updateItems() end
         end,
     })
 end

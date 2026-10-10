@@ -34,6 +34,8 @@ Out of the box this uses the bundled `library.png` (a library with a lectern, 12
 
 The background is scaled to fill the screen in portrait and cropped centered, so a picture with the screen's aspect ratio shows completely.
 
+**Reset to default** goes back to the bundled library picture and its corners. Your own picture file is not deleted.
+
 ## Setting the corners
 
 **Set cover corners** opens the background picture full screen with the current book's cover (or a checkerboard, if there is none) warped onto the four corners. The screen has to be in portrait.

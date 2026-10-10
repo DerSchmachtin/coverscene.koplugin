@@ -175,6 +175,10 @@ function CoverSceneEditor:onCloseWidget()
     self.canvas:free()
     self.background:free()
     self.cover:free()
+    -- UIManager:close() repaints what is below, but leaves refreshing the screen to the widget.
+    UIManager:setDirty(nil, function()
+        return "flashui", self.dimen
+    end)
 end
 
 return CoverSceneEditor
