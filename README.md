@@ -4,6 +4,10 @@ A [KOReader](https://github.com/koreader/koreader) plugin for the sleep screen: 
 
 The cover is warped onto four corners you set yourself, so it can follow a slanted surface in perspective and looks like part of the scene.
 
+<img src="example.png" alt="Sleep screen: a book cover standing on the lectern of a library" width="400">
+
+The bundled library picture with an example cover on its lectern.
+
 ## Install
 
 1. Download this repository (**Code → Download ZIP**) or clone it.
@@ -48,6 +52,7 @@ The cover is stretched to fill the four corners exactly, so the area should have
 - `coverscene_editor.lua`: the full-screen corner editor.
 - `main.lua` / `_meta.lua`: plugin registration, menu entries and the hook into KOReader's sleep screen.
 - `library.png`: the default background picture.
+- `example.png`: the picture shown in this README, not used by the plugin.
 
 ## License
 
